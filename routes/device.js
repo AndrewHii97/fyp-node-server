@@ -1,13 +1,16 @@
-const { response } = require('express');
 const express = require('express');
-const deviceRouter = express.Router();
-const db = require('../db')
+const db = require('../db');
+const multer = require('multer');
 
+
+const deviceRouter = express.Router();
+const upload = multer();
 // use build in body parser from express
 deviceRouter.use(express.json());
 deviceRouter.use(express.urlencoded({
     extended: true 
 }));
+deviceRouter.use(upload.any())
 
 // authentication for each device 
 deviceRouter.use('/',(req,res,next)=>{
@@ -67,6 +70,30 @@ deviceRouter.post('/rfid-check',(req,res)=>{
     })
 })
 
+deviceRouter.post('/upload-pic',async (req,res)=>{
+    console.log('Upload picture route. Upload picture to S3');
+    insertPhoto(req,res)
+    res.status(200).send()
+})
+
+function insertPhoto(req,res){
+    req.files.forEach((file)=>{
+        console.log(file)
+        // insert photo data into database
+        db.none({
+            name: 'insert-photo-table',
+            text: 'INSERT INTO photos(photopath) VALUES ($1)',
+            values: [file.fieldname]
+        })
+        .then((data)=>{
+            console.log("update database")
+        })
+        .catch((err,data)=>{
+            console.log(err)
+            res.send(err)
+        })
+    })
+}
 
 
-module.exports = deviceRouter
+module.exports = deviceRouter;
