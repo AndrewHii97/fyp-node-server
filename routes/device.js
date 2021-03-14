@@ -70,12 +70,34 @@ deviceRouter.post('/rfid-check',(req,res)=>{
     })
 })
 
+// '/upload-pic' route to upload image to s3 & update databases with key 
 deviceRouter.post('/upload-pic',async (req,res)=>{
     console.log('Upload picture route. Upload picture to S3');
     insertPhoto(req,res)
     res.status(200).send()
 })
 
+// '/photo-path' get the photopath given the photoid/keyid from database 
+deviceRouter.post('/photo-path',async (req,res)=>{ 
+    console.log("Get photo path using photoid.")
+    photoid = req.body.photoid
+    try { 
+        data = await getPhotoPath(photoid)
+        res.send(data)
+    }catch(err){ // error handling  
+        console.log("Error getPhotoPath")
+        console.log(err)
+        res.json({
+            "ErrorType": "Database",
+            "message": err
+        })
+    }
+})
+
+/*
+* Database operation 
+*/
+// insert photo without person id 
 function insertPhoto(req,res){
     req.files.forEach((file)=>{
         console.log(file)
@@ -93,6 +115,15 @@ function insertPhoto(req,res){
             res.send(err)
         })
     })
+}
+
+async function getPhotoPath(photoid){ 
+    const photoPath = await db.one({ 
+        name: 'get-photo-key',
+        text: 'SELECT photopath FROM Photos where photoid = ($1)',
+        values: [photoid]
+    })
+    return photoPath
 }
 
 
