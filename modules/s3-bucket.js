@@ -7,10 +7,7 @@ const BUCKET_NAME = 'tgfypbucket';
 // create s3 client object used by other f(x)
 const s3 = new S3Client({
     "region": "us-east-1",
-    "credentials":  fromIni({
-        configFilepath : "../aws_cc/aws-config.txt",
-        filepath : "../aws_cc/aws-cred.txt"
-    })
+    "credentials":  fromIni({})
 });
 
 /*
