@@ -1,10 +1,11 @@
 const express = require('express');
 const db = require('../db');
 const multer = require('multer');
-
-
 const deviceRouter = express.Router();
-const upload = multer();
+const {BUCKET_NAME, uploadToBucket} = require('../modules/s3-bucket')
+
+upload = multer();
+
 // use build in body parser from express
 deviceRouter.use(express.json());
 deviceRouter.use(express.urlencoded({
@@ -13,34 +14,29 @@ deviceRouter.use(express.urlencoded({
 deviceRouter.use(upload.any())
 
 // authentication for each device 
-deviceRouter.use('/',(req,res,next)=>{
+deviceRouter.use('/',async (req,res,next)=>{
     let deviceName = req.body.device_name; // device_name 
     let password = req.body.password; // device password  
     console.log(`deviceName : ${deviceName} ; password : ${password}`);
-    db.one({
-        name: 'authenticate-device',
-        text: 'SELECT * FROM Devices WHERE deviceName = $1 AND devicepassword = $2',
-        values: [deviceName, password]
-    })
-    .then((data)=>{
-        //success 
+    try{ 
+        data = await db.one({
+            name: 'authenticate-device',
+            text: 'SELECT * FROM Devices WHERE deviceName = $1 AND devicepassword = $2',
+            values: [deviceName, password]
+        })
         console.log('DATA',data);
         req.body.id = data.deviceid;
         next();
-    })
-    .catch((error,data)=>{
-        //error 
-        console.log('ERROR',error);
-        res.status(401).json({"error":"401","message":"authentication fail"});
-    })
+    }catch(err){
+        console.log('ERROR:',error);
+        res.status(401).json({error:"401",message:"authentication fail"})
+    }
 });
 
-// check rfid key exists if true open the door 
-deviceRouter.post('/rfid-check',(req,res)=>{
-    console.log(req.body);
-    let rfid = req.body.rfid
-    // modify to return list of valid key user 
-    db.any({
+// getRfidKeyOwner 
+// error generated need to be catch when using this function 
+async function getRfidKeyOwner(rfid){ 
+    let data = await db.any({
         name: 'auth-rfid',
         text: `SELECT Keys.keyId, Keys.keyValue, Persons.Id as PersonId, 
             Persons.Name, PersonTypes.PersonTypeId, PersonTypes.PersonTypeName, 
@@ -51,29 +47,55 @@ deviceRouter.post('/rfid-check',(req,res)=>{
             INNER JOIN Photos ON Photos.PersonId = Persons.id 
             WHERE Keys.keyValue = $1`,
             values: [rfid]
-    })
-    .then((data)=>{
-        // success 
-        console.log('DATA',data);
-        res.json({ 
-            "status": true, 
-            "keyowners": data  
-        })
-    })
-    .catch((error,data)=>{
-        // error 
-        console.log('ERROR',error);
+    });
+    return data; 
+}
+
+// check rfid key exists if true open the door 
+deviceRouter.post('/rfid-check',async (req,res)=>{
+    console.log(req.body);
+    let rfid = req.body.rfid
+    // modify to return list of valid key user 
+    try{
+        keyOwner = await getRfidKeyOwner(rfid);
+        console.log('DATA',keyOwner);
         res.json({
-            "status": false,
+            "status": true, 
+            "keyowner": keyOwner 
+        });
+    }catch(err){ 
+        console.log(err);
+        res.json({
+            "status": false, 
             "message": `${rfid} does not exist`
-        })
-    })
+        });
+        
+    }
 })
 
+async function insertEntryPhoto(fileName){
+        // Insert entry photo which does not have any person information
+        db.none({
+            name: 'insert-photo-table',
+            text: 'INSERT INTO photos(photopath) VALUES ($1)',
+            values: [fileName]
+        })
+}
+
 // '/upload-pic' route to upload image to s3 & update databases with key 
-deviceRouter.post('/upload-pic',async (req,res)=>{
-    console.log('Upload picture route. Upload picture to S3');
-    insertPhoto(req,res)
+deviceRouter.post('/upload-pic',async (req,res,next)=>{
+    console.log("Store image to s3")
+    req.files.forEach( async (file)=>{
+        try{ 
+            let s3Response = await uploadToBucket(file.fieldname,BUCKET_NAME,file.buffer);
+            console.log(s3Response);
+            await insertEntryPhoto(file.fieldname)
+        }catch(err){ 
+            console.log(err);
+            res.send(err)
+            next('router')
+        }
+    })
     res.status(200).send()
 })
 
@@ -93,29 +115,6 @@ deviceRouter.post('/photo-path',async (req,res)=>{
         })
     }
 })
-
-/*
-* Database operation 
-*/
-// insert photo without person id 
-function insertPhoto(req,res){
-    req.files.forEach((file)=>{
-        console.log(file)
-        // insert photo data into database
-        db.none({
-            name: 'insert-photo-table',
-            text: 'INSERT INTO photos(photopath) VALUES ($1)',
-            values: [file.fieldname]
-        })
-        .then((data)=>{
-            console.log("update database")
-        })
-        .catch((err,data)=>{
-            console.log(err)
-            res.send(err)
-        })
-    })
-}
 
 async function getPhotoPath(photoid){ 
     const photoPath = await db.one({ 
