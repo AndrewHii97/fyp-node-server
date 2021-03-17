@@ -2,7 +2,7 @@ const { fromIni } = require("@aws-sdk/credential-provider-ini")
 const { S3Client, ListBucketsCommand, PutObjectCommand, GetObjectCommand} = 
     require("@aws-sdk/client-s3")
 
-const BUCKET_NAME = 'tgfypbucket';
+const BUCKETNAME = 'tgfypbucket';
 
 // create s3 client object used by other f(x)
 const s3 = new S3Client({
@@ -19,20 +19,14 @@ const s3 = new S3Client({
 * return : response success or error   
 */
 async function uploadToBucket(key,bucketName,body){ 
-    try {
-        const data = await s3.send( 
-            new PutObjectCommand({
-                "Key" : key,
-                "Bucket" : bucketName,
-                "Body" : body 
-            })
-        )
-        return data;
-    }catch(err){ 
-        console.log("Upload Object Error Message:");
-        console.log(err);
-        return err;
-    }
+    const data = await s3.send( 
+        new PutObjectCommand({
+            "Key" : key,
+            "Bucket" : bucketName,
+            "Body" : body 
+        })
+    )
+    return data;
 }
 
 /*
@@ -51,4 +45,10 @@ async function getBucketList(){
     }
 }
 
-module.exports = { getBucketList, uploadToBucket, BUCKET_NAME }
+module.exports = { getBucketList, uploadToBucket, BUCKETNAME }
+
+// delete object in bucket 
+// upload object to bucket 
+// get bucketlist 
+// get object url 
+// get object 
