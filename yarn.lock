@@ -68,10 +68,48 @@
   dependencies:
     tslib "^1.8.0"
 
+"@aws-sdk/client-rekognition@^3.8.1":
+  version "3.8.1"
+  resolved "https://registry.yarnpkg.com/@aws-sdk/client-rekognition/-/client-rekognition-3.8.1.tgz#edd005ae18f20f394b2d255f24d3f67666d9df5f"
+  integrity sha512-FBV63ej55eeKkrO8/V2+5+8eYcT6ock6hq12e1OkWb9tmdZnUBT8Xv1FePhWf3OxHQgaKl5LCwse/ZPvZcyqWA==
+  dependencies:
+    "@aws-crypto/sha256-browser" "^1.0.0"
+    "@aws-crypto/sha256-js" "^1.0.0"
+    "@aws-sdk/config-resolver" "3.8.0"
+    "@aws-sdk/credential-provider-node" "3.8.0"
+    "@aws-sdk/fetch-http-handler" "3.6.1"
+    "@aws-sdk/hash-node" "3.6.1"
+    "@aws-sdk/invalid-dependency" "3.6.1"
+    "@aws-sdk/middleware-content-length" "3.6.1"
+    "@aws-sdk/middleware-host-header" "3.6.1"
+    "@aws-sdk/middleware-logger" "3.6.1"
+    "@aws-sdk/middleware-retry" "3.8.0"
+    "@aws-sdk/middleware-serde" "3.6.1"
+    "@aws-sdk/middleware-signing" "3.8.1"
+    "@aws-sdk/middleware-stack" "3.6.1"
+    "@aws-sdk/middleware-user-agent" "3.6.1"
+    "@aws-sdk/node-config-provider" "3.8.0"
+    "@aws-sdk/node-http-handler" "3.6.1"
+    "@aws-sdk/protocol-http" "3.6.1"
+    "@aws-sdk/smithy-client" "3.6.1"
+    "@aws-sdk/types" "3.6.1"
+    "@aws-sdk/url-parser" "3.6.1"
+    "@aws-sdk/url-parser-native" "3.6.1"
+    "@aws-sdk/util-base64-browser" "3.6.1"
+    "@aws-sdk/util-base64-node" "3.6.1"
+    "@aws-sdk/util-body-length-browser" "3.6.1"
+    "@aws-sdk/util-body-length-node" "3.6.1"
+    "@aws-sdk/util-user-agent-browser" "3.6.1"
+    "@aws-sdk/util-user-agent-node" "3.8.0"
+    "@aws-sdk/util-utf8-browser" "3.6.1"
+    "@aws-sdk/util-utf8-node" "3.6.1"
+    "@aws-sdk/util-waiter" "3.6.1"
+    tslib "^2.0.0"
+
 "@aws-sdk/client-s3@^3.8.0":
-  version "3.8.0"
-  resolved "https://registry.yarnpkg.com/@aws-sdk/client-s3/-/client-s3-3.8.0.tgz#4b1b1aff419afbdb2d3e72069736e4860e9c8d8a"
-  integrity sha512-d52BVMHRxXeOoq5I0q+FRYl5BH6Cmn6elYuiVk3cDCiuuGZXK6mNNAwkqmuTISajdX2vFulKI+ouKnp0fYTnrg==
+  version "3.8.1"
+  resolved "https://registry.yarnpkg.com/@aws-sdk/client-s3/-/client-s3-3.8.1.tgz#22e4af1fccc99e9b1f25fab0dc1ddf1910515728"
+  integrity sha512-jCYMZ7mppu7kFid0sk57e1Hb9hPLvkKnBSOjVC2IjxFz+qHHr1Bir321iWeWE0V629iW9thk1KE9eWRYUxRTiw==
   dependencies:
     "@aws-crypto/sha256-browser" "^1.0.0"
     "@aws-crypto/sha256-js" "^1.0.0"
@@ -96,7 +134,7 @@
     "@aws-sdk/middleware-retry" "3.8.0"
     "@aws-sdk/middleware-sdk-s3" "3.6.1"
     "@aws-sdk/middleware-serde" "3.6.1"
-    "@aws-sdk/middleware-signing" "3.6.1"
+    "@aws-sdk/middleware-signing" "3.8.1"
     "@aws-sdk/middleware-ssec" "3.6.1"
     "@aws-sdk/middleware-stack" "3.6.1"
     "@aws-sdk/middleware-user-agent" "3.6.1"
@@ -442,11 +480,12 @@
     "@aws-sdk/types" "3.6.1"
     tslib "^1.8.0"
 
-"@aws-sdk/middleware-signing@3.6.1":
-  version "3.6.1"
-  resolved "https://registry.yarnpkg.com/@aws-sdk/middleware-signing/-/middleware-signing-3.6.1.tgz#e70a2f35d85d70e33c9fddfb54b9520f6382db16"
-  integrity sha512-1woKq+1sU3eausdl8BNdAMRZMkSYuy4mxhLsF0/qAUuLwo1eJLLUCOQp477tICawgu4O4q2OAyUHk7wMqYnQCg==
+"@aws-sdk/middleware-signing@3.8.1":
+  version "3.8.1"
+  resolved "https://registry.yarnpkg.com/@aws-sdk/middleware-signing/-/middleware-signing-3.8.1.tgz#ca5029c0efbbb5b3012508f37534fe57a6cfa01f"
+  integrity sha512-g6tJS/ph1whk7AsNOlFetAiZdvB2k0RHfoO5g6TPDAV8pvBLgjdhmTJg349iPyMDD2f1eabN3GGbeC0mDDEFMA==
   dependencies:
+    "@aws-sdk/property-provider" "3.8.0"
     "@aws-sdk/protocol-http" "3.6.1"
     "@aws-sdk/signature-v4" "3.6.1"
     "@aws-sdk/types" "3.6.1"
@@ -1625,9 +1664,9 @@ pg-pool@^3.2.2:
   integrity sha512-ORJoFxAlmmros8igi608iVEbQNNZlp89diFVx6yV5v+ehmpMY9sK6QgpmgoXbmkNaBAx8cOOZh9g80kJv1ooyA==
 
 pg-promise@^10.9.4:
-  version "10.9.4"
-  resolved "https://registry.yarnpkg.com/pg-promise/-/pg-promise-10.9.4.tgz#487210debc75fd523d0ede09c2a1bdbe114fa474"
-  integrity sha512-LvsKCb3mbeqHxFXFLSHVkRM8WKS067YIjFLVYsfR/z4InTEJcYL4pr2nwGK/WGLE4qNEhRMR9PIEAhjsjggX/A==
+  version "10.9.5"
+  resolved "https://registry.yarnpkg.com/pg-promise/-/pg-promise-10.9.5.tgz#1ad7a2bb7fcbb3cea328caaf1e54eaa07ced4147"
+  integrity sha512-llJfdNQVTixjpsTuKTGStybkTWN5PYHWCTb0iqA9GFsvf1khJaH2dexljkMuyeQ41FG8ZkuqkmxrtRVauuS+0A==
   dependencies:
     assert-options "0.7.0"
     pg "8.5.1"
