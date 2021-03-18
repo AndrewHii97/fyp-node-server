@@ -86,6 +86,7 @@ async function indexFaces2Collection(collectionName,Image,DetectionAttributes=["
     return response 
 }
 
+// facesId need to be in array form
 async function deleteIndexedFaces(collectionName,facesId=[]){ 
     response = await rekog.send(new DeleteFacesCommand({
         "CollectionId":collectionName,
