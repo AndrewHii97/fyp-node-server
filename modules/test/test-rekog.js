@@ -9,7 +9,9 @@ const {
     analyseImage,
     indexFaces2Collection,
     deleteIndexedFaces,
-    detectFaces
+    detectFaces,
+    searchFacesWithId,
+    COLLECTION
 } = require('../rekog.js')
 
 // testing function 
@@ -133,3 +135,14 @@ async function testDetectFacesS3(){
     }
 }
 // testDetectFacesS3()
+// test 11 - tick 
+async function testSearchFacesWithId(){ 
+    try{
+        faceid = 'e5e91f3f-f584-4624-ae64-876d121c3731'
+        response = await searchFacesWithId(COLLECTION,faceid)
+        console.log(response)
+    }catch(err){
+        console.log(err)
+    }
+}
+// testSearchFacesWithId()
