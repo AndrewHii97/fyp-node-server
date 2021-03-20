@@ -1,6 +1,7 @@
 const { fromIni } = require("@aws-sdk/credential-provider-ini")
-const { S3Client, ListBucketsCommand, PutObjectCommand, GetObjectCommand} = 
+const { S3Client, ListBucketsCommand, PutObjectCommand, GetObjectCommand, HeadObjectCommand, DeleteObjectCommand} = 
     require("@aws-sdk/client-s3")
+const { getSignedUrl } = require("@aws-sdk/s3-request-presigner")
 
 const BUCKETNAME = 'tgfypbucket';
 
@@ -45,10 +46,49 @@ async function getBucketList(){
     }
 }
 
-module.exports = { getBucketList, uploadToBucket, BUCKETNAME }
+async function getS3ObjHead(bucket, key){ 
+    objMeta = await s3.send(
+        new HeadObjectCommand({ 
+           "Bucket": bucket,
+           "Key": key
+        })
+    )
+    return objMeta
+}
 
-// delete object in bucket 
-// upload object to bucket 
-// get bucketlist 
-// get object url 
-// get object 
+async function getS3Obj(bucket,key){ 
+    obj = await s3.send(
+        new GetObjectCommand({ 
+            "Bucket": bucket,
+            "Key":key
+        })
+    )
+    return obj 
+}
+
+async function getUrlS3Obj(bucket,key,time){
+    let command = new GetObjectCommand({
+        "Bucket": bucket,
+        "Key": key
+    })
+    const url = await getSignedUrl(s3,command,{expiresIn: time})
+    return url 
+}
+
+async function deleteS3Obj(bucket,key){
+    response = s3.send(new DeleteObjectCommand({
+        "Bucket":bucket,
+        "Key":key
+    }))
+    return response
+}
+
+module.exports = { 
+    BUCKETNAME,
+    getBucketList,
+    uploadToBucket,
+    getS3Obj,
+    getS3ObjHead,
+    getUrlS3Obj,
+    deleteS3Obj 
+}

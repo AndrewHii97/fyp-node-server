@@ -1,5 +1,5 @@
 // rekognition Client 
-const {RekognitionClient} = require("@aws-sdk/client-rekognition");
+const {RekognitionClient, SearchFacesCommand} = require("@aws-sdk/client-rekognition");
 // import Label Operation 
 const {DetectLabelsCommand} = require("@aws-sdk/client-rekognition");
 // import collection operation 
@@ -11,7 +11,7 @@ const {IndexFacesCommand, DeleteFacesCommand} = require("@aws-sdk/client-rekogni
 const {DetectFacesCommand} = require("@aws-sdk/client-rekognition")
 const {fromIni} = require("@aws-sdk/credential-provider-ini");
 
-
+const COLLECTION = "faces"
 
 const rekog = new RekognitionClient({
     region: "us-east-1",
@@ -86,6 +86,7 @@ async function indexFaces2Collection(collectionName,Image,DetectionAttributes=["
     return response 
 }
 
+// facesId need to be in array form
 async function deleteIndexedFaces(collectionName,facesId=[]){ 
     response = await rekog.send(new DeleteFacesCommand({
         "CollectionId":collectionName,
@@ -108,8 +109,19 @@ async function detectFaces(image, attribute=["DEFAULT"]){
     return response
 }
 
+async function searchFacesWithId(collection,faceid){
+    // return faces with 80% confidence and higher 
+    faces = await rekog.send(new SearchFacesCommand({
+        "CollectionId": collection,
+        "FaceId": faceid
+    }))
+    return faces
+    // Response: FaceMatches, FaceModelVersion, SearchedFaceId
+}
+
 module.exports =
 {
+    COLLECTION,
     createS3Image,
     createByteImage,
     createCollection,
@@ -119,5 +131,6 @@ module.exports =
     analyseImage,
     indexFaces2Collection,
     deleteIndexedFaces,
-    detectFaces
+    detectFaces,
+    searchFacesWithId
 }
