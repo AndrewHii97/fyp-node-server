@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../db');
 const multer = require('multer');
+const morgan = require('morgan')
 const deviceRouter = express.Router();
 const log = require('npmlog')
 log.heading = 'device'
@@ -19,6 +20,7 @@ const {
     detectFaces,
     searchFacesWithId
 } = require('../modules/rekog')
+deviceRouter.use(morgan('dev'))
 // use build in body parser from express
 deviceRouter.use(express.json());
 deviceRouter.use(express.urlencoded({
@@ -56,10 +58,18 @@ deviceRouter.use(upload.any())
  *      process 
  *      7. the list of person and its information is returned to the devices
  *     "
- * "add-image" : 
+ * "/add-image" : 
  *      "1. add new photo information into database"
- * "photo-path" : 
+ * "/photo-path" : 
  *      "1. given photoid return photopath" 
+ * "/create-entry"
+ *      "1. create entry of residents/visitors/family" 
+ * "/create-issues"
+ *      "1. create issues related to be view by security and officer"
+ *      "2. issues include tailgating, intruders, unclear condition "
+ *      "3. issues need to relate to the issues photo "
+ * "/search/faceindex/person"
+ *      "1. search with faceindex and return person information"
  */
 deviceRouter.use('/',async (req,res,next)=>{
     log.info('AUTH','Performing Authentication for devices')
@@ -292,5 +302,34 @@ deviceRouter.post('/aws/search-faces',async(req,res)=>{
     }
 })
 
+// TODO - in progress  
+// search with faceIndex then return person
+deviceRouter.post("/search/faceindex/person",async(req,res)=>{
+    let facesIndex = req.body.FaceIndex
+    log.info("/search/faceIndex/person","Searching for Persons with FaceIndex")
+    log.verbose("/search/faceINdex/person",facesIndex)
+    try{
+        persons = await db.any(
+            "SELECT persons.id,persons.name,persons.persontypeid, photos.photoid, photos.faceid, photos.photopath FROM " +
+            "persons INNER JOIN photospersons ON persons.id = photospersons.personid " +
+            "INNER JOIN photos ON photospersons.photoid = photos.photoid " +
+            "WHERE photos.faceid IN ($1:csv);",
+            [facesIndex])
+        log.verbose("/search/faceIndex/person",persons)
+        res.send(persons)
+    }catch(err){
+        log.error(err)
+        res.send(err)
+    }
+})
+
+// "/create-entry"
+//      "1. create entry of residents/visitors/family" 
+// "/create-issues"
+//      "1. create issues related to be view by security and officer"
+//      "2. issues include tailgating, intruders, unclear condition "
+//      "3. issues need to relate to the issues photo "
+// "/search/faceindex/person"
+//      "1. search with faceindex and return person information"
 module.exports = deviceRouter;
 
