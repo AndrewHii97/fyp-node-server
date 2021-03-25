@@ -134,7 +134,7 @@ deviceRouter.post('/aws/upload-img',async (req,res,next)=>{
     req.files.forEach( async (file)=>{
         try{ 
             let s3Response = await
-            uploadToBucket(file.fieldname,BUCKET_NAME,file.buffer);
+                uploadToBucket(file.originalname,BUCKETNAME,file.buffer);
             log.verbose("/aws/upload-img",`${s3Response}`);
             res.status(200).send()
         }catch(err){ 
