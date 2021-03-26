@@ -116,15 +116,12 @@ deviceRouter.post('/rfid-check',async (req,res)=>{
 async function getRfidKeyOwner(rfid){ 
     let data = await db.any({
         name: 'auth-rfid',
-        text: `SELECT Keys.keyId, Keys.keyValue, Persons.Id as PersonId, 
-            Persons.Name, PersonTypes.PersonTypeId, PersonTypes.PersonTypeName, 
-            Photos.photoPath FROM 
-            Keys INNER JOIN PersonsKeys ON Keys.keyId = PersonsKeys.keyId
-            INNER JOIN Persons ON Persons.Id = PersonsKeys.personId 
-            INNER JOIN PersonTypes ON PersonTypes.PersonTypeId = Persons.PersonTypeId
-            INNER JOIN Photos ON Photos.PersonId = Persons.id 
-            WHERE Keys.keyValue = $1`,
-            values: [rfid]
+        text: `Select keys.keyid, keys.keyvalue, persons.id, persons.name, persontypes.persontypename from 
+        keys inner join personskeys on keys.keyid = personskeys.keyid
+        inner join persons on personskeys.personid = persons.id 
+        inner join persontypes on persons.persontypeid = persontypes.persontypeid 
+        where keys.keyvalue = $1`,
+        values: [rfid]
     });
     return data; 
 }
@@ -147,8 +144,9 @@ deviceRouter.post('/aws/upload-img',async (req,res,next)=>{
 
 deviceRouter.post('/add-img',async (req,res,next) =>{ 
     log.info("/add-img","Update image in database")
+    file_name = req.body.file_name 
     try{ 
-        response =  await insertEntryPhoto(file.fieldname)
+        response =  await insertEntryPhoto(file_name)
         log.verbose("/add-img",response)
         res.status(200).send(response)
     }catch(err){ 
@@ -160,10 +158,11 @@ deviceRouter.post('/add-img',async (req,res,next) =>{
 
 async function insertEntryPhoto(fileName){
     // Insert entry photo which does not have any person information
+    phototype = 'image'
     response = await db.none({
         name: 'insert-photo-table',
-        text: 'INSERT INTO photos(photopath) VALUES ($1)',
-        values: [fileName]
+        text: 'INSERT INTO photos(photopath,phototype) VALUES ($1,$2)',
+        values: [fileName,phototype]
     })
 }
 
@@ -196,20 +195,30 @@ deviceRouter.post('/aws/count-persons',async (req,res)=>{
     let fileName =  req.body.fileName
     try{ 
         let image = createS3Image(BUCKETNAME,fileName)
-        let command = createDetectLabelsCommand(image)
+        let minConf = 90 
+        let command = createDetectLabelsCommand(image,undefined,minConf)
         let result = await analyseImage(command)
+        console.log(result)
         // search for "Person" label
         log.info("/aws/count-persons","Search for Person label")
-        let persons = undefined 
+        let persons = []  
+        // filter out the instance with lower confidence level 
         result.Labels.forEach((label)=>{
             if( label.Name === "Person"){
-                console.log("Person Detected")
-                persons = label.Instances
+                log.info("Person Detected")
+                log.verbose("Confidence:${label.Confidence}")
+                label.Instances.forEach((inst)=>{
+                    log.verbose("Confidence Level:")
+                    log.verbose(inst.Confidence)
+                    if(inst.Confidence >= minConf){
+                        persons.push(inst)
+                    } 
+                })
             }
         })
         // count and return the Person Instances Count in the label 
         log.info("/aws/count-persons","Count the number of person")
-        if (persons === undefined){
+        if (persons.length == 0){
             log.verbose("/aws/count/-person","Person not found in the image")
             res.json({
                 "PersonCount": 0
@@ -217,7 +226,8 @@ deviceRouter.post('/aws/count-persons',async (req,res)=>{
         }else{ 
             log.verbose("/aws/count-persons",`PersonCount:${persons.length}`)
             res.json({
-                "PersonCount": persons.length
+                "PersonCount": persons.length,
+                "personDetail": persons
             })
         }
     }catch(err){
@@ -238,7 +248,8 @@ deviceRouter.post('/aws/count-faces',async (req,res)=>{
         let faceCount = faces.length
         log.verbose("/aws/count-faces",`FaceCount:${faceCount}`)
         res.json({
-            "FaceCount": faceCount
+            "FaceCount": faceCount,
+            "FaceDetail": faces
         })
     }catch(err){ 
         log.error("/aws/count-faces",err);
