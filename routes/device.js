@@ -18,8 +18,10 @@ const {
     indexFaces2Collection,
     deleteIndexedFaces,
     detectFaces,
-    searchFacesWithId
-} = require('../modules/rekog')
+    searchFacesWithId,
+    listCollection
+} = require('../modules/rekog');
+const { text } = require('body-parser');
 deviceRouter.use(morgan('dev'))
 // use build in body parser from express
 deviceRouter.use(express.json());
@@ -116,15 +118,12 @@ deviceRouter.post('/rfid-check',async (req,res)=>{
 async function getRfidKeyOwner(rfid){ 
     let data = await db.any({
         name: 'auth-rfid',
-        text: `SELECT Keys.keyId, Keys.keyValue, Persons.Id as PersonId, 
-            Persons.Name, PersonTypes.PersonTypeId, PersonTypes.PersonTypeName, 
-            Photos.photoPath FROM 
-            Keys INNER JOIN PersonsKeys ON Keys.keyId = PersonsKeys.keyId
-            INNER JOIN Persons ON Persons.Id = PersonsKeys.personId 
-            INNER JOIN PersonTypes ON PersonTypes.PersonTypeId = Persons.PersonTypeId
-            INNER JOIN Photos ON Photos.PersonId = Persons.id 
-            WHERE Keys.keyValue = $1`,
-            values: [rfid]
+        text: `Select persons.id, persons.name, persontypes.persontypename from 
+        keys inner join personskeys on keys.keyid = personskeys.keyid
+        inner join persons on personskeys.personid = persons.id 
+        inner join persontypes on persons.persontypeid = persontypes.persontypeid 
+        where keys.keyvalue = $1`,
+        values: [rfid]
     });
     return data; 
 }
@@ -134,12 +133,19 @@ deviceRouter.post('/aws/upload-img',async (req,res,next)=>{
     req.files.forEach( async (file)=>{
         try{ 
             let s3Response = await
-            uploadToBucket(file.fieldname,BUCKET_NAME,file.buffer);
+                uploadToBucket(file.originalname,BUCKETNAME,file.buffer);
             log.verbose("/aws/upload-img",`${s3Response}`);
-            res.status(200).send()
+            res.json({
+                status: true,
+                message: "successful upload"
+            })
         }catch(err){ 
             log.error("ERROR",`${err}`)
-            res.send(err)
+            res.json({
+                status: false, 
+                message: "fail to uplaod image aws " 
+
+            })
             next('router')
         }
     })
@@ -147,8 +153,9 @@ deviceRouter.post('/aws/upload-img',async (req,res,next)=>{
 
 deviceRouter.post('/add-img',async (req,res,next) =>{ 
     log.info("/add-img","Update image in database")
+    file_name = req.body.file_name 
     try{ 
-        response =  await insertEntryPhoto(file.fieldname)
+        response =  await insertEntryPhoto(file_name)
         log.verbose("/add-img",response)
         res.status(200).send(response)
     }catch(err){ 
@@ -160,11 +167,13 @@ deviceRouter.post('/add-img',async (req,res,next) =>{
 
 async function insertEntryPhoto(fileName){
     // Insert entry photo which does not have any person information
-    response = await db.none({
+    phototype = 'image'
+    response = await db.one({
         name: 'insert-photo-table',
-        text: 'INSERT INTO photos(photopath) VALUES ($1)',
-        values: [fileName]
+        text: 'INSERT INTO photos(photopath,phototype) VALUES ($1,$2) RETURNING * ',
+        values: [fileName,phototype]
     })
+    return response
 }
 
 deviceRouter.post('/photo-path',async (req,res)=>{ 
@@ -196,20 +205,30 @@ deviceRouter.post('/aws/count-persons',async (req,res)=>{
     let fileName =  req.body.fileName
     try{ 
         let image = createS3Image(BUCKETNAME,fileName)
-        let command = createDetectLabelsCommand(image)
+        let minConf = 85
+        let command = createDetectLabelsCommand(image,undefined,minConf)
         let result = await analyseImage(command)
+        console.log(result)
         // search for "Person" label
         log.info("/aws/count-persons","Search for Person label")
-        let persons = undefined 
+        let persons = []  
+        // filter out the instance with lower confidence level 
         result.Labels.forEach((label)=>{
             if( label.Name === "Person"){
-                console.log("Person Detected")
-                persons = label.Instances
+                log.info("Person Detected")
+                log.verbose("Confidence:${label.Confidence}")
+                label.Instances.forEach((inst)=>{
+                    log.verbose("Confidence Level:")
+                    log.verbose(inst.Confidence)
+                    if(inst.Confidence >= minConf){
+                        persons.push(inst)
+                    } 
+                })
             }
         })
         // count and return the Person Instances Count in the label 
         log.info("/aws/count-persons","Count the number of person")
-        if (persons === undefined){
+        if (persons.length == 0){
             log.verbose("/aws/count/-person","Person not found in the image")
             res.json({
                 "PersonCount": 0
@@ -217,7 +236,8 @@ deviceRouter.post('/aws/count-persons',async (req,res)=>{
         }else{ 
             log.verbose("/aws/count-persons",`PersonCount:${persons.length}`)
             res.json({
-                "PersonCount": persons.length
+                "PersonCount": persons.length,
+                "personDetail": persons
             })
         }
     }catch(err){
@@ -238,7 +258,8 @@ deviceRouter.post('/aws/count-faces',async (req,res)=>{
         let faceCount = faces.length
         log.verbose("/aws/count-faces",`FaceCount:${faceCount}`)
         res.json({
-            "FaceCount": faceCount
+            "FaceCount": faceCount,
+            "FaceDetail": faces
         })
     }catch(err){ 
         log.error("/aws/count-faces",err);
@@ -253,19 +274,18 @@ deviceRouter.post('/aws/search-faces',async(req,res)=>{
     let fileName = req.body.fileName
     log.info("/aws/search-faces",`Search for faces in ${fileName}`)
     let hasUnIndexed = false
-    log.verbose("/aws/search-faces",`hasIndexed:${hasUnIndexed}`) 
     try { 
         let image = createS3Image(BUCKETNAME,fileName)
         log.info("/aws/search-faces","Index faces into Collection")
         let response = await indexFaces2Collection(COLLECTION,
             image,["DEFAULT"],fileName)
-        log.verbose("/aws/search-faces",`${response}`)
+        console.log(response)
         let faces = response.FaceRecords // array of faces 
         let faceId = [] 
         faces.forEach((f)=> {
             faceId.push(f.Face.FaceId)
         })
-        log.verbose("/aws/search-faces",`Face Indexed:\n${faceId}`)
+        log.verbose("/aws/search-faces",`Face Indexed:${faceId}`)
         let unindexedCount = response.UnindexedFaces.length
         if (unindexedCount > 0){ 
             log.warn('/aws/search-faces',`${unindexedCount} Faces Unindexed`)
@@ -278,27 +298,36 @@ deviceRouter.post('/aws/search-faces',async(req,res)=>{
             "searchId": "",
             "FaceMatches": ""
         }
-        faceId.forEach(async (id)=>{
+        for( i=0; i< faceId.length; i++){
             try{
-                let searchResult = await searchFacesWithId(COLLECTION,id)
+                let searchResult = await searchFacesWithId(COLLECTION,faceId[i])
+                console.log(searchResult)
                 face = { 
-                    "searchId": id,
+                    "searchId": faceId[i],
                     "FaceMatches": searchResult.FaceMatches
                 }
                 matchedFaces.push(face)
             }catch(err){
                 log.error(err)
             }
+        }
+        matchedFaces.forEach((f)=>{
+            console.log(f)
         })
         log.info("/aws/search-faces","Delete the indexed faces")
         await deleteIndexedFaces(COLLECTION,faceId)
+        
         res.json({
+            "status": true,
             "hasUnIndexed": hasUnIndexed,
             "Result": matchedFaces,
         })
     }catch(err){ 
         log.error(err)
-        res.send(err)
+        res.json({
+           "status" : false, 
+           "error" : err 
+        })
     }
 })
 
@@ -310,11 +339,12 @@ deviceRouter.post("/search/faceindex/person",async(req,res)=>{
     log.verbose("/search/faceINdex/person",facesIndex)
     try{
         persons = await db.any(
-            "SELECT persons.id,persons.name,persons.persontypeid, photos.photoid, photos.faceid, photos.photopath FROM " +
+            "SELECT persons.id,persons.name,persons.persontypeid, photos.photoid, photos.faceid, photos.photopath , photos.phototype FROM " +
             "persons INNER JOIN photospersons ON persons.id = photospersons.personid " +
             "INNER JOIN photos ON photospersons.photoid = photos.photoid " +
-            "WHERE photos.faceid IN ($1:csv);",
-            [facesIndex])
+            "WHERE photos.phototype='face' AND photos.faceid IN ($1:csv);",
+            [facesIndex]
+        )
         log.verbose("/search/faceIndex/person",persons)
         res.send(persons)
     }catch(err){
@@ -323,13 +353,67 @@ deviceRouter.post("/search/faceindex/person",async(req,res)=>{
     }
 })
 
-// "/create-entry"
-//      "1. create entry of residents/visitors/family" 
-// "/create-issues"
-//      "1. create issues related to be view by security and officer"
-//      "2. issues include tailgating, intruders, unclear condition "
-//      "3. issues need to relate to the issues photo "
-// "/search/faceindex/person"
-//      "1. search with faceindex and return person information"
+// list collection used to test if credentials is working 
+deviceRouter.post("/collection-list",async(req,res)=>{
+    data = await listCollection()    
+    res.send(data)
+})
+
+/**
+ * 
+ * @param {Description} issuesObj 
+ */
+async function createIssue(issuesObj){ 
+    issue = await db.one({
+        name: "create issue",
+        text: "insert into issues(description) VALUES($1) RETURNING * ",
+        values: [issuesObj.Description] 
+    })
+    return issue
+}
+
+deviceRouter.post("/issue/create",async(req,res)=>{
+    let description = req.body.description
+    try{ 
+        issue = await createIssue({"Description": description})
+        res.send(issue)
+    }catch(err){ 
+        log.error(err)
+        res.send(err)
+    }
+})
+
+deviceRouter.post('/entry/create', async(req,res)=>{
+    let personid = req.body.personid 
+    let photoid = req.body.photoid 
+    try{
+        entries = await db.one({ 
+            "name": "create entries",
+            "text": "INSERT INTO entries(personid,photoid) VALUES( $1,$2 ) returning *",
+            "values": [personid, photoid]
+        })
+        res.send(entries)
+    }catch(err){ 
+        log.error(err) 
+        res.send(err)
+    }
+})
+
+deviceRouter.post('/issue-photo/create',async( req, res)=>{
+    let issueid = req.body.issueid
+    let photoid = req.body.photoid 
+    try{ 
+        issPhoto = await db.one({
+            "name": "link issues with photo", 
+            "text": "INSERT INTO issuesphotos(issueid, photoid) VALUES ($1, $2) returning *",
+            "values": [issueid, photoid]
+        })
+        res.send(issPhoto)
+    }catch(err){
+        log.error(err)
+        res.send(err)
+    }
+})
+
 module.exports = deviceRouter;
 
