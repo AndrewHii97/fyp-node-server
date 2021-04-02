@@ -12,7 +12,7 @@ const {DetectFacesCommand} = require("@aws-sdk/client-rekognition")
 const {fromIni} = require("@aws-sdk/credential-provider-ini");
 
 const COLLECTION = "faces"
-
+// const COLLECTION = "test"
 const rekog = new RekognitionClient({
     region: "us-east-1",
     credentials: fromIni({})
