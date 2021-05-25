@@ -1,11 +1,11 @@
 const express = require('express');
-const db = require('../db');
-const multer = require('multer');
-const morgan = require('morgan')
-const deviceRouter = express.Router();
-const log = require('npmlog')
-log.heading = 'device'
-log.level = 'all'
+const db = require('../db'); 
+const multer = require('multer'); // handle multipart/form data aka image upload 
+const morgan = require('morgan'); // http request logger 
+const deviceRouter = express.Router(); // create router 
+const log = require('npmlog') // logger 
+log.heading = 'device' // log header 
+log.level = 'all' // log level 
 const {
     BUCKETNAME,
     uploadToBucket,
@@ -273,8 +273,8 @@ deviceRouter.post('/aws/search-faces',async(req,res)=>{
     log.info("/aws/search-faces","Search faces in Collection")
     let fileName = req.body.fileName
     log.info("/aws/search-faces",`Search for faces in ${fileName}`)
-    let hasUnIndexed = false
     try { 
+        var hasUnIndexed = false;
         let image = createS3Image(BUCKETNAME,fileName)
         log.info("/aws/search-faces","Index faces into Collection")
         let response = await indexFaces2Collection(COLLECTION,
@@ -289,7 +289,7 @@ deviceRouter.post('/aws/search-faces',async(req,res)=>{
         let unindexedCount = response.UnindexedFaces.length
         if (unindexedCount > 0){ 
             log.warn('/aws/search-faces',`${unindexedCount} Faces Unindexed`)
-            hasUnIndexed = True
+            hasUnIndexed = true 
             log.verbose("/aws/search-faces",`hasIndexed:${hasUnindexed}`)
         }
         let matchedFaces = []
@@ -384,13 +384,14 @@ deviceRouter.post("/issue/create",async(req,res)=>{
 })
 
 deviceRouter.post('/entry/create', async(req,res)=>{
-    let personid = req.body.personid 
-    let photoid = req.body.photoid 
+    let personid = req.body.personid ;
+    let photoid = req.body.photoid ;
+    let hasissue = req.body.hasissue ;
     try{
         entries = await db.one({ 
             "name": "create entries",
-            "text": "INSERT INTO entries(personid,photoid) VALUES( $1,$2 ) returning *",
-            "values": [personid, photoid]
+            "text": "INSERT INTO entries(personid,photoid,hasissue) VALUES( $1,$2,$3 ) returning *",
+            "values": [personid, photoid, hasissue]
         })
         res.send(entries)
     }catch(err){ 
