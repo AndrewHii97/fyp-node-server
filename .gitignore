@@ -61,3 +61,4 @@ typings/
 .next
 
 test-image
+server.code-workspace
