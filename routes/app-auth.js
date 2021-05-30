@@ -1,4 +1,5 @@
 const { v4 : uuidv4} = require('uuid');
+const { BUCKETNAME, uploadToBucket, getUrlS3Obj, deleteS3Obj} = require('../modules/s3-bucket');
 const express = require('express');
 const db = require('../db');
 const multer = require('multer');
@@ -33,23 +34,31 @@ authRouter.post('/auth', async (req, res) => {
 
 authRouter.get('/profile/:id', async (req, res) => {
     let id = req.params.id;
+    let url; 
     try {
         profile = await db.one({
             name: 'get profile information of user',
             text: `SELECT * FROM SECURITYOFFICERS WHERE ID = $1`,
             values: [id]
         })
+        if( profile.photokey == null || typeof profile.photokey == 'undefined'){ 
+            console.log("photokey is not defined")
+        }else{ 
+            url = await getUrlS3Obj(BUCKETNAME, profile.photokey);
+        }
         // return json with profile information 
         res.json({
             gender: profile.gender,
             username: profile.username,
             photokey: profile.photokey,
+            photourl: url,
             officertype: profile.officertype,
             name: profile.securityname,
             age: profile.age,
             contact: profile.contact
         })
     } catch (err) {
+        console.log(err);
         res.status(500).json({ message: err });
     }
 })
@@ -89,7 +98,7 @@ authRouter.post('/profile/:id/update/password', async(req, res)=> {
     let id = req.params.id;
     let newPswd = req.body.newPassword;
     let oldPswd = req.body.oldPassword;
-    let response ; 
+    let response; 
     try{
         response = await db.one({
             name: "update the user password", 
@@ -112,20 +121,43 @@ authRouter.post('/profile/:id/update/password', async(req, res)=> {
 })
 
 authRouter.post('/profile/:id/update/picture', fileUpload.single('profilepic'),async function(req,res){
+    let id = req.params.id;
     let uuid =  uuidv4(); // generate a uuid for the profile image upload 
-    let path =  `security/${uuid}`;
     let file =  req.file;
+    let path;
+
+    if(file.mimetype === 'image/jpeg' ){
+        path = `security/${uuid}.jpg`;
+    }else if(file.mimetype ==='image/png'){ 
+        path = `security/${uuid}.png` ;
+    }
+
+    let oldPhotoKey = req.body.photokey;
+    console.log(`oldphotokey=${oldPhotoKey}`);
+    console.log(typeof oldPhotoKey);
+    let s3Resp; 
+    let dbResp;
     try { 
         console.log(path);
         console.log(file);
-        // upload the profile pictures into aws
-
-        // update the database table with the photokey
-        // await db.one({ 
-        //    name: "Update profile pictures of security "
-        // })
+        // upload image to bucket 
+        s3Resp = await uploadToBucket(path, BUCKETNAME, req.file.buffer);
+        // upload photokey to database
+        dbResp = await db.none({ 
+           name: "Update profile pictures of security ",
+           text: `UPDATE SecurityOfficers 
+           SET photoKey = $1 
+           WHERE id = $2`,
+           values: [path, id]
+        })
+        if ( oldPhotoKey !== 'undefined'  ){ 
+            console.log("initial photokey is not null");
+            s3Resp = await deleteS3Obj(BUCKETNAME, oldPhotoKey)
+        }
+        res.status(200).json({success: true});
 
     }catch(err){ 
+        res.status(500);
         console.log(err);
     }
 })
