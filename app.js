@@ -14,6 +14,7 @@ const personRouter = require('./routes/person');
 const alertRouter = require('./routes/alert');
 const entryRouter = require('./routes/entry');
 const authRouter = require('./routes/app-auth');
+const houseRouter = require('./routes/house');
 app.use(cors());
 app.use(helmet());
 app.use(morgan('dev'));
@@ -23,6 +24,7 @@ app.use('/person',personRouter);
 app.use('/alert',alertRouter);
 app.use('/entry',entryRouter);
 app.use('/app',authRouter);
+app.use('/house',houseRouter);
 
 
 app.listen(port, ()=> { 
