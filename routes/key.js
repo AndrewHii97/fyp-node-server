@@ -22,6 +22,23 @@ keyRouter.get('/list',async(req,res)=>{
     }
 })
 
+keyRouter.get('', async(req,res)=>{
+    try{
+        let livingunitid = req.query.livingunitid;
+        // make sure there is id coming in
+        let keys = await db.any({
+            name: 'query all key of a house',
+            text: 'SELECT * FROM keys WHERE livingunitid = $1',
+            values: [livingunitid]
+        })
+        res.status(200).send(keys);
+    }catch(err){
+        console.log(err);
+        res.status(400).send([]);
+
+    }
+})
+
 keyRouter.post('/new',async(req,res)=>{ 
     let keyvalue = req.body.keyvalue;
     let livingunitid = req.body.livingunitid;

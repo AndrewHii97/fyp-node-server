@@ -16,6 +16,7 @@ const entryRouter = require('./routes/entry');
 const authRouter = require('./routes/app-auth');
 const houseRouter = require('./routes/house');
 const keyRouter = require('./routes/key');
+const residentRouter = require('./routes/resident');
 
 app.use(cors());
 app.use(helmet());
@@ -28,6 +29,7 @@ app.use('/entry',entryRouter);
 app.use('/app',authRouter);
 app.use('/house',houseRouter);
 app.use('/key', keyRouter);
+app.use('/resident',residentRouter);
 
 
 app.listen(port, ()=> { 
