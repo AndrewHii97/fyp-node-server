@@ -8,7 +8,7 @@ const fileUpload = multer();
 const { v4 : uuidv4} = require('uuid');
 
 const { searchFacesWithId, indexFaces2Collection, deleteIndexedFaces, createByteImage, COLLECTION} = require('../modules/rekog');
-const { uploadToBucket, deleteS3Obj , BUCKETNAME } = require('../modules/s3-bucket');
+const { getUrlS3Obj, uploadToBucket, deleteS3Obj , BUCKETNAME } = require('../modules/s3-bucket');
 
 residentRouter.use(express.urlencoded({ extended: true }));
 
@@ -71,7 +71,7 @@ residentRouter.post('',async(req,res)=>{
                 name: 'link the person with key',
                 text: `INSERT INTO PersonsKeys(personid, keyid)
                 VALUES ($1, $2)`,
-                valuse: [result.id, keyid]
+                values: [result.id, keyid]
             })
         }
         // response no error 
@@ -121,20 +121,39 @@ residentRouter.post('/image/check',fileUpload.single('checkImage'),async(req,res
                 message: "pictures does not contain face"
             })
         }else if ( indexedFacesLength > 0 && unindexedFacesLength == 0) {
-            console.log('single face detected & check for similar faces in collection')
-            let searchResponse = await searchFacesWithId('faces',response.FaceRecords[0].Face.FaceId);
-            if (searchResponse.FaceMatches.length > 0){
-                console.log("similar faces exists in the collection")
+            // make sure the faceid is not used already by checking the database 
+            let faceid = response.FaceRecords[0].Face.FaceId
+            let faceRes = await db.oneOrNone({
+                name: "search for similar faceid in database", 
+                text: `SELECT * FROM photos where 
+                faceid = $1`,
+                values: [faceid]
+            })
+
+            if(faceRes){
                 res.status(200).json({
                     valid: false,
-                    error: 4,
-                    message: "similar faces exists in the collection"
+                    error: 5,
+                    message: "exact same copy of pictures found"
                 })
+                return;
             }else{
-                res.status(200).json({
-                    valid: true
-                })
+                console.log('single face detected & check for similar faces in collection')
+                let searchResponse = await searchFacesWithId('faces',response.FaceRecords[0].Face.FaceId);
+                if (searchResponse.FaceMatches.length > 0){
+                    console.log("similar faces exists in the collection")
+                    res.status(200).json({
+                        valid: false,
+                        error: 4,
+                        message: "similar faces exists in the collection"
+                    })
+                }else{
+                    res.status(200).json({
+                        valid: true
+                    })
+                }
             }
+
         }
 
         // remove the face indexed in the collection if any face is indexed 
@@ -179,8 +198,7 @@ residentRouter.post('/image',fileUpload.single('image'), async(req,res,next)=>{
                 message: "more than 1 faces in picture"
             })
             await deleteIndexedFaces(COLLECTION, [faceid] )
-            next()
-            
+            return;
         }else if ( indexedFacesLength == 0 && unindexedFacesLength > 0){ 
             console.log('unclear or low quality pictures');
             res.status(200).json({
@@ -188,7 +206,7 @@ residentRouter.post('/image',fileUpload.single('image'), async(req,res,next)=>{
                 error: 2,
                 message: "low quality picture"
             })
-            next()
+            return;
         }else if ( indexedFacesLength == 0 && unindexedFacesLength == 0){
             console.log('no faces detected in the pictures');
             res.status(200).json({
@@ -196,7 +214,7 @@ residentRouter.post('/image',fileUpload.single('image'), async(req,res,next)=>{
                 error: 3,
                 message: "pictures does not contain face"
             })
-            next()
+            return;
         }else if ( indexedFacesLength > 0 && unindexedFacesLength == 0) {
             console.log('single face detected & check for similar faces in collection')
             let searchResponse = await searchFacesWithId('faces',response.FaceRecords[0].Face.FaceId);
@@ -208,13 +226,15 @@ residentRouter.post('/image',fileUpload.single('image'), async(req,res,next)=>{
                     message: "similar faces exists in the collection"
                 })
                 await deleteIndexedFaces(COLLECTION, [faceid] )
-                next()
+                return;
             }
         }
     }catch(err){
         console.log(err);
-        next();
-
+        res.status(400).json({
+            valid: false
+        })
+        return
     }
 
     // upload to s3 bucket 
@@ -420,6 +440,34 @@ residentRouter.patch("/:id",async (req, res, next)=>{
     }
 
     res.status(200).json({valid: true});
+})
+
+residentRouter.get('/image',async (req,res)=>{
+    let id = req.query.id;
+    let photos;
+    console.log('id',id);
+    try{
+        photos = await db.oneOrNone({
+            name:'get the image of the resident',
+            text:`SELECT photos.photoid, photos.photopath, photos.faceid from
+            (persons inner join photospersons on 
+            persons.id = photospersons.personid inner join photos 
+            on photos.photoid = photospersons.photoid )
+            where photos.phototype='face' AND photospersons.personid = $1`,
+            values: [id]
+        })
+        let s3path = photos?.photopath;
+        if ( s3path ){
+            console.log('photokey',s3path);
+            let imageUrl =  await getUrlS3Obj(BUCKETNAME, s3path, 3600);
+            res.status(200).json({ ...photos, imageUrl: imageUrl});
+        }else{ 
+            res.status(200).json({});
+        }
+    }catch(err){ 
+        console.log(err)
+        res.status(400).json({valid: false});
+    }
 })
 
 
