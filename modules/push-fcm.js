@@ -8,8 +8,6 @@ admin.initializeApp({
 
 
 function sendPushNotification(alert,tokenList){
-	console.log(tokenList)
-	
 	let registrationToken = []
 	tokenList.forEach((tok) =>{
 		registrationToken.push(tok.token);

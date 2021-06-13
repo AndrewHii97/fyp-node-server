@@ -379,7 +379,6 @@ async function createIssue(issuesObj){
      }catch(err){
          console.log(err)
      }
-    console.log(issue);
     sendPushNotification(issue, tokenList);
     return issue;
 }

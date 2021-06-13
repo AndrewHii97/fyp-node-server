@@ -18,6 +18,7 @@ const houseRouter = require('./routes/house');
 const keyRouter = require('./routes/key');
 const residentRouter = require('./routes/resident');
 const tokenRouter = require('./routes/token');
+const securityRouter = require('./routes/security');
 
 app.use(cors());
 app.use(helmet());
@@ -31,7 +32,8 @@ app.use('/app',authRouter);
 app.use('/house',houseRouter);
 app.use('/key', keyRouter);
 app.use('/resident',residentRouter);
-app.use('/token',tokenRouter)
+app.use('/token',tokenRouter);
+app.use('/security',securityRouter);
 
 
 app.listen(port, ()=> { 

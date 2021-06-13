@@ -9,8 +9,6 @@ tokenRouter.patch('',async (req,res)=>{
 	let personid = req.body.id // person id 
 	let token = req.body.token // token 
 	let agent = req.headers['user-agent'];
-	console.log(personid, token);
-	console.log(agent);
 	let resp ;
 
 	try{ 
