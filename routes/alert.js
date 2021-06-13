@@ -107,7 +107,7 @@ alertRouter.get('/:id/image', async(req, res)=>{
     let imagepath;
     let url;
     try{ 
-        let image = await db.one({
+        let image = await db.oneOrNone({
             name : 'Get the image path given the image id',
             text : `select * from photos where photoid = $1`,
             values : [id]
@@ -117,6 +117,7 @@ alertRouter.get('/:id/image', async(req, res)=>{
     }catch(err){
         console.log(err);
         res.status(400).json({valid: false});
+        return
     }
 
     try{ 

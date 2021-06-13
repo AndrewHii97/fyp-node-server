@@ -4,6 +4,7 @@ const multer = require('multer'); // handle multipart/form data aka image upload
 const morgan = require('morgan'); // http request logger 
 const deviceRouter = express.Router(); // create router 
 const log = require('npmlog') // logger 
+const { sendPushNotification } = require('../modules/push-fcm');
 log.heading = 'device' // log header 
 log.level = 'all' // log level 
 const {
@@ -366,10 +367,21 @@ deviceRouter.post("/collection-list",async(req,res)=>{
 async function createIssue(issuesObj){ 
     issue = await db.one({
         name: "create issue",
-        text: "insert into issues(description) VALUES($1) RETURNING * ",
-        values: [issuesObj.Description] 
+        text: "insert into issues(description,checked) VALUES($1,$2) RETURNING * ",
+        values: [issuesObj.Description,false] 
     })
-    return issue
+    let tokenList;
+    try{
+        tokenList = await db.any({
+            name: "Get all token list",
+            text: "SELECT token.token FROM token",
+        })
+     }catch(err){
+         console.log(err)
+     }
+    console.log(issue);
+    sendPushNotification(issue, tokenList);
+    return issue;
 }
 
 deviceRouter.post("/issue/create",async(req,res)=>{
