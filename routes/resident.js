@@ -5,7 +5,7 @@ const residentRouter  = express.Router();
 const fileUpload = multer();
 const { v4 : uuidv4} = require('uuid');
 
-const { searchFacesWithId, indexFaces2Collection, deleteIndexedFaces, createByteImage, COLLECTION} = require('../modules/rekog');
+const { searchFacesWithId, indexFaces2Collection, deleteIndexedFaces, createByteImage, COLLECTION, createS3Image} = require('../modules/rekog');
 const { getUrlS3Obj, uploadToBucket, deleteS3Obj , BUCKETNAME } = require('../modules/s3-bucket');
 
 residentRouter.use(express.urlencoded({ extended: true }));
@@ -31,6 +31,49 @@ residentRouter.get('',async(req,res)=>{
     }
 })
 
+residentRouter.post('/:residentid/approve', async(req,res)=>{
+    let residentid = req.params.residentid;
+    // update the resident row to approved to approved
+    let update = await db.any({
+        name: "Approve the resident column",
+        text: `UPDATE residents SET approved = $1
+        WHERE id = $2`,
+        values: [true, residentid]
+    })
+    // get the photopath of the resident image 
+    let photos = await db.one({
+        name: "Get photokey of the residents",
+        text: `SELECT photos.photoid,photos.photopath FROM photospersons INNER JOIN
+        photos ON photos.photoid = photospersons.photoid
+        WHERE photospersons.personid = $1 AND 
+        photos.phototype = $2`,
+        values: [ residentid, 'face']
+    })
+    let photokey = photos.photopath;
+    let photoid = photos.photoid;
+    // make sure the photokey is not null
+    let s3object;
+    let indexResult;
+    if (photokey){
+        s3object = createS3Image(BUCKETNAME,photokey);
+        try{
+            indexResult = await indexFaces2Collection(COLLECTION,s3object)
+        }catch(err){
+            console.log(err)
+        }
+    }
+    let faceid = indexResult.FaceRecords[0].Face.FaceId;
+    let tableUpdate = await db.none({
+        name: "update photos with faceid for the approved resident",
+        text: `UPDATE photos SET faceid = $1 WHERE
+        photoid = $2`,
+        values : [faceid, photoid ]
+    })
+
+    res.status(200).json({valid : true});
+})
+
+
 residentRouter.post('',async(req,res)=>{ 
     let name = req.body.name;
     let gender = req.body.gender;
@@ -41,6 +84,7 @@ residentRouter.post('',async(req,res)=>{
     let livingunitid = req.body.livingunitid;
     let username = req.body.username;
     let keyid = req.body.keyid;
+    let notapprove = req.body.notapprove;
     console.log(typeof keyid, keyid)
     // livingunitid can be empty 
     try{ 
@@ -55,14 +99,24 @@ residentRouter.post('',async(req,res)=>{
         })
         console.log(result);
         // use the person id to create a resident 
-        let response = await db.none({ 
-            name: 'create resident with person assigned to',
-            text: `INSERT INTO Residents(id, username, password,
-                 livingunitid, contact, approved)
-            VALUES($1, $2, $3, $4, $5, $6)`,
-            values: [result.id, username, password, livingunitid, contact, true]
-    
-        })
+        if(notapprove){
+            let response = await db.none({ 
+                name: 'create resident with person assigned to',
+                text: `INSERT INTO Residents(id, username, password,
+                    livingunitid, contact, approved)
+                VALUES($1, $2, $3, $4, $5, $6)`,
+                values: [result.id, username, password, livingunitid, contact, false]
+            })
+        }else{
+            let response = await db.none({ 
+                name: 'create resident with person assigned to',
+                text: `INSERT INTO Residents(id, username, password,
+                    livingunitid, contact, approved)
+                VALUES($1, $2, $3, $4, $5, $6)`,
+                values: [result.id, username, password, livingunitid, contact, true]
+        
+            })
+        }
         // link the key with the person
         if (keyid !== 'undefined'){
             await db.none({
@@ -163,8 +217,7 @@ residentRouter.post('/image/check',fileUpload.single('checkImage'),async(req,res
     }
 })
 
-
-residentRouter.post('/image',fileUpload.single('image'), async(req,res,next)=>{
+residentRouter.post('/image/unapprove',fileUpload.single('image'), async(req,res,next)=>{
     let uuid = uuidv4() 
     let file = req.file; 
     let id = req.body.id; // need to be used to update db 
@@ -177,7 +230,57 @@ residentRouter.post('/image',fileUpload.single('image'), async(req,res,next)=>{
         path = `${uuid}.png` ;
     }
 
+    // upload to s3 bucket 
+    try{
+        let r = await uploadToBucket( path,BUCKETNAME, file.buffer)
+    }catch(err){ 
+        console.log("problem upload to bucket")
+        console.log(err)
+        res.status(400).json({valid: false});
+        next()
+    }
+
+    // update database as final step 
+    try{ 
+        let dbresp = await db.one({
+            name: 'relate the photo to person',
+            text: `INSERT INTO photos( photopath, phototype)
+            VALUES( $1, $2) RETURNING photoid`,
+            values: [path, "face"]
+        }) 
+        let photoid = dbresp.photoid ;
+        console.log('photoid', photoid);
+        await db.none({
+            name: 'relate photo and person in photospersons',
+            text: `INSERT INTO photospersons(photoid, personid)
+            VALUES ($1, $2)`,
+            values: [photoid, id]
+        })
+        res.status(200).json({valid: true});
+    }catch(err){
+        console.log(err);
+        res.status(400).json({valid: false});
+    }
+
     
+    
+})
+
+residentRouter.post('/image',fileUpload.single('image'), async(req,res,next)=>{
+    let uuid = uuidv4() 
+    let file = req.file; 
+    let id = req.body.id; // need to be used to update db 
+    let notapprove = req.body.notapprove
+    let faceid;
+    let path; // nedd to be used to update db 
+    
+    if(file.mimetype === 'image/jpeg' ){
+        path = `${uuid}.jpg`;
+    }else if(file.mimetype ==='image/png'){ 
+        path = `${uuid}.png` ;
+    }
+
+
     // index into collection
     try{ 
         let byteImage = createByteImage(file.buffer);
