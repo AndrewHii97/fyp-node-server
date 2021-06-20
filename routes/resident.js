@@ -7,6 +7,7 @@ const { v4 : uuidv4} = require('uuid');
 
 const { searchFacesWithId, indexFaces2Collection, deleteIndexedFaces, createByteImage, COLLECTION, createS3Image} = require('../modules/rekog');
 const { getUrlS3Obj, uploadToBucket, deleteS3Obj , BUCKETNAME } = require('../modules/s3-bucket');
+const { restart } = require('nodemon');
 
 residentRouter.use(express.urlencoded({ extended: true }));
 
@@ -345,6 +346,7 @@ residentRouter.post('/image/unapprove',fileUpload.single('image'), async(req,res
     
 })
 
+
 residentRouter.post('/image',fileUpload.single('image'), async(req,res,next)=>{
     let uuid = uuidv4() 
     let file = req.file; 
@@ -547,6 +549,95 @@ residentRouter.get("/key",async(req,res)=>{
     
 })
 
+residentRouter.patch('/image/idonly',fileUpload.single('image'), async(req, res)=>{
+    console.log('Patch Image with file and id only');
+    let uuid = uuidv4()
+    let file = req.file;
+    console.log(file);
+    let path;
+    let newfaceid;
+    let residentid = req.body.id;
+
+    let resident; 
+    // get resident information from residentid 
+    try{ 
+        /**
+         * photoid, photopath, faceid
+         */
+        resident = await db.one({
+            name: 'extract photopath, photoid and faceid for processing',
+            text: `SELECT photos.photoid, photos.photopath, photos.faceid
+            FROM persons inner join photospersons on persons.id = photospersons.personid
+            inner join photos on photospersons.photoid = photos.photoid 
+            where photos.phototype = $1  and persons.id = $2`,
+            values: ['face', residentid]
+        })
+    }catch(err){
+        console.log(err);
+        res.status(400).json({valid:false});
+        return;
+    }
+
+   // create new photo path
+    if(file.mimetype === 'image/jpeg' ){
+        path = `${uuid}.jpg`;
+    }else if(file.mimetype ==='image/png'){ 
+        path = `${uuid}.png`;
+    }
+    console.log('NewFilePath',path);
+
+    let byteImage = createByteImage(file.buffer);
+    try{
+        let indexResponse = await indexFaces2Collection(COLLECTION, byteImage, null, null, 1);
+        newfaceid = indexResponse.FaceRecords[0].Face.FaceId;
+    }catch(err){
+        console.log(err);
+        res.status(400).json({valid: false});
+        return;
+    }
+    console.log("NewFaceId",newfaceid);
+
+    // upload to s3Bucket
+    try{
+        let r = await uploadToBucket( path,BUCKETNAME, file.buffer)
+    }catch(err){
+        console.log(err) 
+        res.status(400).json({valid: false});
+        await deleteIndexedFaces(COLLECTION, [newfaceid]);
+        return;
+    }
+
+    //unindex the old face from collection 
+    try{ 
+        let r = await deleteIndexedFaces(COLLECTION,[resident.faceid]);
+    }catch(err){
+        res.status(400).json({valid:false});
+        return;
+    }
+
+    //delete photo from s3 
+    try{
+        let r = await deleteS3Obj(BUCKETNAME, resident.photopath);
+    }catch(err){
+        res.status(400).json({valid:false});
+        return;
+    }
+
+    //update the photos information in photo table 
+    try{
+        let r = await db.none({
+            name: 'update photo of photo table',
+            text: `UPDATE photos SET photopath = $1, 
+            faceid = $2 WHERE photoid = $3`,
+            values: [path, newfaceid, resident.photoid ]
+        })
+        res.status(200).json({valid:true});
+    }catch(err){
+        res.status(400).json({valid:false});
+        return;
+    }
+})
+
 residentRouter.patch('/image',fileUpload.single('image'),async(req,res)=>{
     console.log('Patch image')
     let uuid = uuidv4() 
@@ -557,6 +648,7 @@ residentRouter.patch('/image',fileUpload.single('image'),async(req,res)=>{
     let oldfaceid = req.body.faceid;
     let photoid = req.body.photoid; // need to be used to update db 
 
+    // create new photo path
     if(file.mimetype === 'image/jpeg' ){
         path = `${uuid}.jpg`;
     }else if(file.mimetype ==='image/png'){ 
@@ -724,26 +816,6 @@ residentRouter.patch("/:id",async (req, res, next)=>{
     res.status(200).json({valid: true});
 })
 
-
-
-residentRouter.patch('/image',fileUpload.single('image'),async(req,res)=>{
-    console.log('Patch image')
-    let uuid = uuidv4() 
-    let file = req.file; 
-    let path;
-    let phototid = req.body.photoid; // need to be used to update db 
-
-    if(file.mimetype === 'image/jpeg' ){
-        path = `${uuid}.jpg`;
-    }else if(file.mimetype ==='image/png'){ 
-        path = `${uuid}.png` ;
-    }
-    console.log(path);
-    console.log(file);
-
-    res.status(200).json({valid: true});
-
-})
 
 // update password for resident profile from resident mobile apps 
 residentRouter.patch('/:id/password', async(req,res)=>{
