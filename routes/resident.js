@@ -31,6 +31,85 @@ residentRouter.get('',async(req,res)=>{
     }
 })
 
+residentRouter.get('/image',async (req,res)=>{
+    let id = req.query.id;
+    let photos;
+    console.log('id',id);
+    try{
+        photos = await db.oneOrNone({
+            name:'get the image of this resident',
+            text:`SELECT photos.photoid, photos.photopath, photos.faceid from
+            (persons inner join photospersons on 
+            persons.id = photospersons.personid inner join photos 
+            on photos.photoid = photospersons.photoid )
+            where photos.phototype='face' AND photospersons.personid = $1`,
+            values: [id]
+        })
+        let s3path = photos?.photopath;
+        if ( s3path ){
+            console.log('photokey',s3path);
+            let imageUrl =  await getUrlS3Obj(BUCKETNAME, s3path, 3600);
+            res.status(200).json({ ...photos, imageUrl: imageUrl});
+        }else{ 
+            res.status(200).json({ valid: false});
+        }
+    }catch(err){ 
+        console.log(err)
+        res.status(400).json({valid: false});
+    }
+})
+
+residentRouter.get('/:residentid', async(req,res)=>{
+    let residentId = req.params.residentid;
+    if( residentId == 'undefined'){
+        res.status(200)
+        return;
+    }
+    try { 
+        let response = await db.oneOrNone({ 
+            name: 'Get the resident information with id',
+            text: `select persons.id, persons.gender, persons.icno, persons.address, persons.name,
+            residents.username, residents.contact, residents.approved, residents.livingunitid,
+            livingunits.unitcode
+            from persons inner join residents on persons.id = residents.id  
+            inner join livingunits on livingunits.livingunitid = residents.livingunitid
+            where residents.id = $1`,
+            values: [residentId]
+        })
+        if(response){
+            res.status(200).json({...response});
+        }
+    }catch(err){
+        res.status(400);
+    }
+})
+
+
+residentRouter.post('/id', async(req, res)=>{ 
+    let username = req.body.username;
+    let password = req.body.password;
+    try{ 
+        let response = await db.oneOrNone({
+            name: 'Check if resident exists and is approved',
+            text: `select persons.id, residents.approved 
+            from persons inner join residents on persons.id = residents.id 
+            where residents.username = $1 and residents.password = $2`,
+            values: [username, password]
+        })
+        if(response){
+            res.status(200).json({...response, valid:true});
+        }else{
+            res.status(200).json({valid:false});
+        }
+    }catch(err){
+        console.log('error in database query');
+        console.log(err);
+        res.status(400).json({valid: false});
+        return;
+    }
+
+})
+
 residentRouter.post('/:residentid/approve', async(req,res)=>{
     let residentid = req.params.residentid;
     // update the resident row to approved to approved
@@ -528,6 +607,46 @@ residentRouter.patch('/image',fileUpload.single('image'),async(req,res)=>{
     }
 })
 
+residentRouter.patch("/:residentid/keyless",async (req,res)=>{
+    let id = req.params.residentid;
+    let name = req.body.name;
+    let gender = req.body.gender;
+    let contact = req.body.contact;
+    let address = req.body.address;
+    let icno = req.body.icno;
+
+    try{
+        let rsp = await db.none({
+            name: 'update residents inforamtion via mobile apps',
+            text: `UPDATE persons 
+            SET gender = $1,
+            icno = $2,
+            address = $3,
+            name = $4
+            WHERE id = $5` ,
+            values: [gender, icno,address,name, id ]
+        })
+    }catch(err){
+        console.log(err)
+        res.status(400)
+        return;
+    }
+
+    try{
+        let rsp = await db.none({
+            name: 'update the residents information contact via mobile apps',
+            text: `UPDATE residents
+            SET contact = $1 
+            WHERE id = $2`,
+            values: [contact, id]
+        })
+        res.status(200).json({});
+    }catch(err){
+        console.log(err);
+        res.status(400).json({});
+        return;
+    }
+})
 
 
 residentRouter.patch("/:id",async (req, res, next)=>{ 
@@ -605,33 +724,7 @@ residentRouter.patch("/:id",async (req, res, next)=>{
     res.status(200).json({valid: true});
 })
 
-residentRouter.get('/image',async (req,res)=>{
-    let id = req.query.id;
-    let photos;
-    console.log('id',id);
-    try{
-        photos = await db.oneOrNone({
-            name:'get the image of the resident',
-            text:`SELECT photos.photoid, photos.photopath, photos.faceid from
-            (persons inner join photospersons on 
-            persons.id = photospersons.personid inner join photos 
-            on photos.photoid = photospersons.photoid )
-            where photos.phototype='face' AND photospersons.personid = $1`,
-            values: [id]
-        })
-        let s3path = photos?.photopath;
-        if ( s3path ){
-            console.log('photokey',s3path);
-            let imageUrl =  await getUrlS3Obj(BUCKETNAME, s3path, 3600);
-            res.status(200).json({ ...photos, imageUrl: imageUrl});
-        }else{ 
-            res.status(200).json({});
-        }
-    }catch(err){ 
-        console.log(err)
-        res.status(400).json({valid: false});
-    }
-})
+
 
 residentRouter.patch('/image',fileUpload.single('image'),async(req,res)=>{
     console.log('Patch image')
@@ -649,6 +742,46 @@ residentRouter.patch('/image',fileUpload.single('image'),async(req,res)=>{
     console.log(file);
 
     res.status(200).json({valid: true});
+
+})
+
+// update password for resident profile from resident mobile apps 
+residentRouter.patch('/:id/password', async(req,res)=>{
+    let id = req.params.id;
+    let oriPassword = req.body.oripassword;
+    let newPassword = req.body.newpassword; 
+    let response;
+
+    try{
+        response = await db.oneOrNone({
+            name: 'check if the orignal password exists',
+            text: `SELECT password FROM residents 
+            WHERE id = $1` ,
+            values : [id]
+        })
+        console.log(response);
+    }catch(err){
+        res.status(400).json({valid: false});
+        console.log(err);
+        return;
+    }
+    
+    try{
+        if (response.password == oriPassword) {
+            let result = await db.none({
+                name: 'update the password if the password match',
+                text: `UPDATE residents SET password = $1 WHERE id = $2`,
+                values: [ newPassword, id]
+            })
+            res.status(200).json({valid: true});
+        }else{
+            res.status(200).json({valid: false});
+        }
+    }catch(err){
+        res.status(400).json({valid:false});
+        console.log(err);
+        return;
+    }
 
 })
 
