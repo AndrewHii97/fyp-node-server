@@ -5,6 +5,7 @@ const multer = require('multer');
 const alertRouter = express.Router();
 const log = require('npmlog');
 const { BUCKETNAME, getUrlS3Obj, deleteS3Obj} = require('../modules/s3-bucket');
+const { dangerouslyDisableDefaultSrc } = require('helmet/dist/middlewares/content-security-policy');
 
 log.level = 'all';
 log.heading = 'alert'
@@ -170,6 +171,43 @@ async function getListofFaceUrl(list){
     }
     return newArray
 }
+
+alertRouter.get('/unchecked/total', async (req,res)=>{
+    try{ 
+        let response = await db.one({
+            name: 'get total unchecked alert',
+            text: `SELECT COUNT(checked) FROM ISSUES WHERE checked=$1`,
+            values:['false']
+        })
+        console.log(response);
+        res.status(200).json({...response});
+    }catch(err){
+        console.log(err);
+        res.status(400).json({valid: false});
+        
+    }
+})
+
+alertRouter.get('/latest',async(req,res)=>{
+    let response;
+    try{
+        response = await db.oneOrNone({
+            name: 'get the latest alert information',
+            text: `SELECT issues.issueid as alertid, TO_CHAR(issues.issuedate :: DATE, 'dd/mm/yyyy') as alertdate,
+            TO_CHAR(issues.issuetime :: TIME, 'HH24:MI:SS') as alerttime, issues.description as description, 
+            photos.photoid, photos.photopath 
+            FROM issues 
+            inner join issuesphotos on issues.issueid = issuesphotos.issueid
+            inner join photos on photos.photoid = issuesphotos.photoid
+            ORDER BY alertdate DESC, alerttime DESC
+            LIMIT 1;`
+        })
+        res.status(200).json({...response});
+    }catch(err){
+        console.log(err);
+        res.status(400).json({valid: false});
+    }
+})
 
 
 module.exports = alertRouter;

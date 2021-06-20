@@ -857,5 +857,19 @@ residentRouter.patch('/:id/password', async(req,res)=>{
 
 })
 
+residentRouter.get('/unreviewed/total',async (req,res)=>{
+    try{
+        let response = await db.any({
+            name: 'get the total unreviewd resident in the table',
+            text: 'SELECT COUNT (approved) FROM residents WHERE approved = $1',
+            values: ['false']
+        })
+        res.status(200).json(...response);
+    }catch(err){
+        console.log(err);
+        res.status(400).json({valid: false});
+    }
+})
+
 
 module.exports = residentRouter;

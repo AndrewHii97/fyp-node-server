@@ -8,7 +8,7 @@ const { BUCKETNAME, getUrlS3Obj, deleteS3Obj} = require('../modules/s3-bucket');
 const { request } = require('express');
 
 log.level = 'all';
-log.heading = 'alert'
+log.heading = 'entry'
 
 entryRouter.use(cors())
 
@@ -33,6 +33,30 @@ entryRouter.get('/entryList',async (__ , res)=>{
     }catch(err){
         log.error(err);
         res.status(500).send(err);
+    }
+})
+
+entryRouter.get('/latest',async(req,res)=>{
+    console.log("get latest entry id ")
+    let response
+    try{
+       response = await db.oneOrNone({
+           name: "Get the latest entry detail",
+           text: `SELECT entries.entryid, photos.photoid, 
+           TO_CHAR(entries.entrydate::DATE,'dd/mm/yyyy') as entrydate,
+           TO_CHAR(entries.entrytime::TIME, 'HH24:MI:SS') as entrytime,
+           photos.photoid, photos.photopath, photos.faceid,
+           persons.name
+           FROM ENTRIES INNER JOIN PHOTOS 
+           ON entries.photoid = photos.photoid 
+           INNER JOIN PERSONS ON persons.id = entries.personid
+           ORDER BY entryDate DESC,entryTime DESC LIMIT 1`,
+           values: []
+       }) 
+       res.status(200).json({...response});
+    }catch(err){
+        res.status(400).json({valid: false});
+        console.log(err);
     }
 })
 
