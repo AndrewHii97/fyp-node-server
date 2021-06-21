@@ -17,7 +17,7 @@ alertRouter.get('/alertList',async ( req,res)=>{
         alertList = await db.any({
             name: "List All Alert", 
             text: `select issues.issueid as alertid, TO_CHAR(issues.issuedate :: DATE, 'dd/mm/yyyy') as alertdate,
-            TO_CHAR(issues.issuetime :: TIME, 'HH24:MI:SS') as alerttime, issues.description as description, 
+            TO_CHAR(issues.issuetime :: TIME, 'HH24:MI:SS') as alerttime, issues.description as description, issues.falsealarm,
             photos.photoid, photos.photopath
             from issues
             inner join issuesphotos on issues.issueid = issuesphotos.issueid
@@ -88,13 +88,27 @@ alertRouter.delete('/:alertid/:photoid',async(req, res)=>{
     res.status(200).json({valid:true});
 })
 
-alertRouter.patch('/:id', async(req, res)=>{
+alertRouter.patch('/:id/check', async(req, res)=>{
     let id = req.params.id;
     try{ 
         let response = await db.none({
             name: 'Update the checked column to true',
-            text: 'UPDATE issues SET checked= $1',
-            values: [true]
+            text: 'UPDATE issues SET checked= $1, falsealarm=$2 WHERE issues.issueid = $3',
+            values: [true, false, id]
+        })
+        res.status(200).json({valid:true});
+    }catch(err){
+        res.status(400).json({valid:false});
+    }
+})
+
+alertRouter.patch('/:id/checkFalse', async(req, res)=>{
+    let id = req.params.id;
+    try{
+        let response = await db.none({
+            name: 'Update the checked column to true and the false alarm to true',
+            text: 'UPDATE issues SET checked= $1, falsealarm =$2 WHERE issues.issueid = $3',
+            values: [true, true, id]
         })
         res.status(200).json({valid:true});
     }catch(err){
