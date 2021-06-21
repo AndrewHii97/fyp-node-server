@@ -64,17 +64,47 @@ houseRouter.post('/update', async( req, res)=>{
 houseRouter.post('/delete',async( req,res ) =>{ 
     let id = req.body.livingunitid;
     try { 
+        let response = await db.one({
+            name : 'check any person is assigned to the house',
+            text : `SELECT COUNT(*) FROM livingunits INNER JOIN residents 
+            ON livingunits.livingunitid = residents.livingunitid WHERE 
+            livingunits.livingunitid = $1`,
+            values: [id]
+        })
+        // someone is still assigned to the unit 
+        if (response.count > 0){
+            res.status(200).json({valid: false, message: 'owned'});
+            return;
+        }
+    }catch(err){
+        console.log(err);
+        res.status(400).json({valid: false})
+        return;
+    }
+    // delete the house with its key all together
+    try{ 
         let response = await db.none({
-            name: "delete house and related data",
-            text: `DELETE FROM livingunits 
-             WHERE livingunitid = $1`,
+            name : 'delete all the keys assigned to the house',
+            text : 'DELETE FROM keys WHERE livingunitid = $1',
+            values: [id]
+        })
+    }catch(err){
+        res.status(400).json({valid: false});
+        return;
+    }
+
+    try{
+        let response = await db.none({
+            name : 'delete the housing unit itself',
+            text : `DELETE FROM livingunits WHERE livingunitid = $1`,
             values: [id]
         })
         res.status(200).json({valid: true});
-    }catch(err){ 
-        console.log(err)
-        res.json({valid: false});
+    }catch(err){
+        res.status(400).json({valid: false});
+        return;
     }
+
 })
 
 

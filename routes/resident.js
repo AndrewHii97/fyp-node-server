@@ -60,6 +60,28 @@ residentRouter.get('/image',async (req,res)=>{
     }
 })
 
+residentRouter.get("/key",async(req,res)=>{
+    let id = req.query.id;
+    let key;
+    // id of the residents 
+
+    // find the key the resident have 
+    try{ 
+        key = await db.oneOrNone({
+            name: 'Get key owned by the residents',
+            text: `SELECT keys.keyid, keys.keyvalue, keys.livingunitid FROM keys INNER JOIN personskeys 
+            ON personskeys.keyid = keys.keyid
+            WHERE personskeys.personid = $1`,
+            values: [id]
+        })
+        res.status(200).send(key);
+    }catch(err){
+        console.log(err);
+        res.status(400).json({valid: false});
+    }
+    
+})
+
 residentRouter.get('/:residentid', async(req,res)=>{
     let residentId = req.params.residentid;
     if( residentId == 'undefined'){
@@ -84,6 +106,25 @@ residentRouter.get('/:residentid', async(req,res)=>{
         res.status(400);
     }
 })
+
+
+
+residentRouter.get('/unreviewed/total',async (req,res)=>{
+    try{
+        let response = await db.any({
+            name: 'get the total unreviewd resident in the table',
+            text: 'SELECT COUNT (approved) FROM residents WHERE approved = $1',
+            values: ['false']
+        })
+        res.status(200).json(...response);
+    }catch(err){
+        console.log(err);
+        res.status(400).json({valid: false});
+    }
+})
+
+
+
 
 
 residentRouter.post('/id', async(req, res)=>{ 
@@ -527,27 +568,6 @@ residentRouter.delete('/:id',async(req,res)=>{
 
 })
 
-residentRouter.get("/key",async(req,res)=>{
-    let id = req.query.id;
-    let key;
-    // id of the residents 
-
-    // find the key the resident have 
-    try{ 
-        key = await db.oneOrNone({
-            name: 'Get key owned by the residents',
-            text: `SELECT keys.keyid, keys.keyvalue, keys.livingunitid FROM keys INNER JOIN personskeys 
-            ON personskeys.keyid = keys.keyid
-            WHERE personskeys.personid = $1`,
-            values: [id]
-        })
-        res.status(200).send(key);
-    }catch(err){
-        console.log(err);
-        res.status(400).json({valid: false});
-    }
-    
-})
 
 residentRouter.patch('/image/idonly',fileUpload.single('image'), async(req, res)=>{
     console.log('Patch Image with file and id only');
@@ -740,6 +760,45 @@ residentRouter.patch("/:residentid/keyless",async (req,res)=>{
     }
 })
 
+// update password for resident profile from resident mobile apps 
+residentRouter.patch('/:id/password', async(req,res)=>{
+    let id = req.params.id;
+    let oriPassword = req.body.oripassword;
+    let newPassword = req.body.newpassword; 
+    let response;
+
+    try{
+        response = await db.oneOrNone({
+            name: 'check if the orignal password exists',
+            text: `SELECT password FROM residents 
+            WHERE id = $1` ,
+            values : [id]
+        })
+        console.log(response);
+    }catch(err){
+        res.status(400).json({valid: false});
+        console.log(err);
+        return;
+    }
+    
+    try{
+        if (response.password == oriPassword) {
+            let result = await db.none({
+                name: 'update the password if the password match',
+                text: `UPDATE residents SET password = $1 WHERE id = $2`,
+                values: [ newPassword, id]
+            })
+            res.status(200).json({valid: true});
+        }else{
+            res.status(200).json({valid: false});
+        }
+    }catch(err){
+        res.status(400).json({valid:false});
+        console.log(err);
+        return;
+    }
+
+})
 
 residentRouter.patch("/:id",async (req, res, next)=>{ 
     let id = req.params.id;  // resident id 
@@ -817,59 +876,8 @@ residentRouter.patch("/:id",async (req, res, next)=>{
 })
 
 
-// update password for resident profile from resident mobile apps 
-residentRouter.patch('/:id/password', async(req,res)=>{
-    let id = req.params.id;
-    let oriPassword = req.body.oripassword;
-    let newPassword = req.body.newpassword; 
-    let response;
 
-    try{
-        response = await db.oneOrNone({
-            name: 'check if the orignal password exists',
-            text: `SELECT password FROM residents 
-            WHERE id = $1` ,
-            values : [id]
-        })
-        console.log(response);
-    }catch(err){
-        res.status(400).json({valid: false});
-        console.log(err);
-        return;
-    }
-    
-    try{
-        if (response.password == oriPassword) {
-            let result = await db.none({
-                name: 'update the password if the password match',
-                text: `UPDATE residents SET password = $1 WHERE id = $2`,
-                values: [ newPassword, id]
-            })
-            res.status(200).json({valid: true});
-        }else{
-            res.status(200).json({valid: false});
-        }
-    }catch(err){
-        res.status(400).json({valid:false});
-        console.log(err);
-        return;
-    }
 
-})
-
-residentRouter.get('/unreviewed/total',async (req,res)=>{
-    try{
-        let response = await db.any({
-            name: 'get the total unreviewd resident in the table',
-            text: 'SELECT COUNT (approved) FROM residents WHERE approved = $1',
-            values: ['false']
-        })
-        res.status(200).json(...response);
-    }catch(err){
-        console.log(err);
-        res.status(400).json({valid: false});
-    }
-})
 
 
 module.exports = residentRouter;

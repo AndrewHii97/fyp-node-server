@@ -69,20 +69,34 @@ keyRouter.post('/new',async(req,res)=>{
 })
 
 keyRouter.delete('/:id',async(req, res)=>{
-    let id = req.params.id
+    let keyid = req.params.id
+    let result
     try { 
-        let result = await db.none({
-        name: "delete key",
-        text:
-            `DELETE FROM keys
-            WHERE keyid = $1`,
-        values: [id] 
+        result = await db.any({
+            name: 'check if key owned by someone',
+            text: `SELECT * FROM personskeys WHERE keyid = $1`,
+            values: [keyid]
+        })
+        console.log(result)
+        if (result.length > 0){
+            res.status(200).json({valid: false, message: 'keyowned'});
+            return;
+        }
+    }catch(err){
+        res.status(400).json({valid: false});
+    }
+
+    try{ 
+        result = await db.none({
+            name: 'remove key from the table',
+            text: 'DELETE FROM keys WHERE keyid = $1 ',
+            values: [keyid]
         })
         res.status(200).json({valid: true});
     }catch(err){
-        console.log(err);
-        res.json({valid:false});
+        res.status(400).json({valid:false})
     }
+    
 })
 
 keyRouter.patch('/', async(req,res)=>{
