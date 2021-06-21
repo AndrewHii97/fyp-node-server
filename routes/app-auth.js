@@ -31,97 +31,7 @@ authRouter.post('/auth', async (req, res) => {
 });
 
 
-
-authRouter.get('/profile/:id', async (req, res) => {
-    let id = req.params.id;
-    let url; 
-    try {
-        profile = await db.one({
-            name: 'get profile information of user',
-            text: `SELECT * FROM SECURITYOFFICERS WHERE ID = $1`,
-            values: [id]
-        })
-        if( profile.photokey == null || typeof profile.photokey == 'undefined'){ 
-            console.log("photokey is not defined")
-        }else{ 
-            url = await getUrlS3Obj(BUCKETNAME, profile.photokey);
-        }
-        // return json with profile information 
-        res.json({
-            gender: profile.gender,
-            username: profile.username,
-            photokey: profile.photokey,
-            photourl: url,
-            officertype: profile.officertype,
-            name: profile.securityname,
-            age: profile.age,
-            contact: profile.contact
-        })
-    } catch (err) {
-        console.log(err);
-        res.status(500).json({ message: err });
-    }
-})
-
-authRouter.post('/profile/:id/update', async (req, res) => {
-    let response;
-    let id = req.params.id;
-    try { 
-        response = await db.none({
-            name: "Update profile information",
-            text: 
-            `UPDATE SecurityOfficers 
-            SET gender=$1,
-            securityname=$2,
-            username=$3,
-            age=$4,
-            contact=$5 
-            WHERE id=$6`,
-            values: [req.body.gender,
-                req.body.name,
-                req.body.username,
-                req.body.age,
-                req.body.contact,
-                id]
-        });
-        res.status(200);
-    } catch (err){ 
-        console.log(err)
-        res.status(500).json({
-            error : true,
-            message: err
-        });
-    }
-})
-
-authRouter.post('/profile/:id/update/password', async(req, res)=> {
-    let id = req.params.id;
-    let newPswd = req.body.newPassword;
-    let oldPswd = req.body.oldPassword;
-    let response; 
-    try{
-        response = await db.one({
-            name: "update the user password", 
-            text: 
-            `UPDATE SecurityOfficers 
-            SET password = $1 
-            WHERE id= $2 AND
-            password = $3
-            RETURNING id` ,
-            values:[ newPswd, id, oldPswd]
-        })
-        res.status(200);
-    }catch(err){
-        console.log(err);
-        res.status(500).json({
-            wrongPassword: true,
-            message: err
-        })
-    }
-})
-
-authRouter.post('/profile/:id/update/picture', fileUpload.single('profilepic'),async function(req,res){
-    let id = req.params.id;
+authRouter.post('/profile/:id/update/picture', fileUpload.single('profilepic'),async function(req,res){ let id = req.params.id;
     let uuid =  uuidv4(); // generate a uuid for the profile image upload 
     let file =  req.file;
     let path;
@@ -161,6 +71,96 @@ authRouter.post('/profile/:id/update/picture', fileUpload.single('profilepic'),a
         console.log(err);
     }
 })
+
+authRouter.post('/profile/:id/update/password', async(req, res)=> {
+    let id = req.params.id;
+    let newPswd = req.body.newPassword;
+    let oldPswd = req.body.oldPassword;
+    let response; 
+    try{
+        response = await db.one({
+            name: "update the user password", 
+            text: 
+            `UPDATE SecurityOfficers 
+            SET password = $1 
+            WHERE id= $2 AND
+            password = $3
+            RETURNING id` ,
+            values:[ newPswd, id, oldPswd]
+        })
+        res.status(200);
+    }catch(err){
+        console.log(err);
+        res.status(500).json({
+            wrongPassword: true,
+            message: err
+        })
+    }
+})
+
+authRouter.post('/profile/:id/update/profile', async (req, res) => {
+    let response;
+    let id = req.params.id;
+    try { 
+        response = await db.none({
+            name: "Update profile information",
+            text: 
+            `UPDATE SecurityOfficers 
+            SET gender=$1,
+            securityname=$2,
+            username=$3,
+            age=$4,
+            contact=$5 
+            WHERE id=$6`,
+            values: [req.body.gender,
+                req.body.name,
+                req.body.username,
+                req.body.age,
+                req.body.contact,
+                id]
+        });
+        res.status(200);
+    } catch (err){ 
+        console.log(err)
+        res.status(500).json({
+            error : true,
+            message: err
+        });
+    }
+})
+
+
+authRouter.get('/profile/:id', async (req, res) => {
+    let id = req.params.id;
+    let url; 
+    try {
+        profile = await db.one({
+            name: 'get profile information of user',
+            text: `SELECT * FROM SECURITYOFFICERS WHERE ID = $1`,
+            values: [id]
+        })
+        if( profile.photokey == null || typeof profile.photokey == 'undefined'){ 
+            console.log("photokey is not defined")
+        }else{ 
+            url = await getUrlS3Obj(BUCKETNAME, profile.photokey);
+        }
+        // return json with profile information 
+        res.json({
+            gender: profile.gender,
+            username: profile.username,
+            photokey: profile.photokey,
+            photourl: url,
+            officertype: profile.officertype,
+            name: profile.securityname,
+            age: profile.age,
+            contact: profile.contact
+        })
+    } catch (err) {
+        console.log(err);
+        res.status(500).json({ message: err });
+    }
+})
+
 
 
 module.exports = authRouter;
