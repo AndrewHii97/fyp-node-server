@@ -21,6 +21,24 @@ securityRouter.get('/',async(req,res)=>{
 	}
 })
 
+securityRouter.post('/username/check',async(req,res)=>{
+	let username = req.body.username;
+	try{ 
+		let response = await db.oneOrNone({
+			name: 'check if username already exists for security and guard',
+			text: 'SELECT * FROM SecurityOfficers WHERE username = $1',
+			values: [username]
+		})
+		if( response ){ 
+			res.status(200).json({duplicate: true});
+		}else{ 
+			res.status(200).json({duplicate: false});
+		}
+	}catch(err){
+		res.status(400).json({duplicate: false})
+	}
+})
+
 securityRouter.post('/',async(req,res)=>{
 	console.log("create new security");
 	let securityname = req.body['securityname']

@@ -123,7 +123,51 @@ residentRouter.get('/unreviewed/total',async (req,res)=>{
     }
 })
 
+residentRouter.post('/icno/check',async(req,res)=>{
+    let icno = req.body.icno;
+    if(icno){
+        try{
+            let response = await db.oneOrNone({
+                name : 'Check if the icno is taken',
+                text : 'SELECT * FROM persons WHERE icno = $1',
+                values: [icno]
+            })
+            if(response){ 
+                res.status(200).json({duplicate: true});
+            }else{
+                res.status(200).json({duplicate: false});
+            }
+        }catch(err){
+            res.status(400).send({duplicate: false});
+        }
+    }else{
+        res.status(200).send({duplciate: false});
+    }
 
+})
+
+residentRouter.post('/username/check',async (req,res)=>{
+    let username = req.body.username;
+    if(username){
+        try{ 
+            let response = await db.oneOrNone({
+                name : 'Check if the username is taken',
+                text : 'SELECT * FROM residents WHERE username = $1',
+                values: [username]
+            })
+            if (response){
+                res.status(200).json({duplicate: true});
+            }else{
+                res.status(200).send({duplciate: false});
+            }
+        }catch(err){
+            console.log(err);
+            res.status(400).json({})
+        }
+    }else{
+        res.status(200).json({duplicate: false});
+    }
+})
 
 
 

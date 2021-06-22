@@ -15,12 +15,13 @@ authRouter.post('/auth', async (req, res) => {
     try {
         let data = await db.one({
             name: 'authenticate web app user',
-            text: `SELECT ID FROM SECURITYOFFICERS WHERE USERNAME = $1 AND 
+            text: `SELECT ID, OFFICERTYPE  FROM SECURITYOFFICERS WHERE USERNAME = $1 AND 
                    PASSWORD = $2`,
             values: [username, password]
         });
         res.json({
             "id": data.id,
+            "officertype": data.officertype,
             "isValid": true
         });
     } catch (err) {
