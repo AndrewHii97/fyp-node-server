@@ -366,7 +366,8 @@ residentRouter.post('/image/check',fileUpload.single('checkImage'),async(req,res
                     })
                 }else{
                     res.status(200).json({
-                        valid: true
+                        valid: true,
+                        message: 'valid photo'
                     })
                 }
             }
