@@ -17,6 +17,7 @@ tokenRouter.patch('',async (req,res)=>{
 			text: "SELECT * FROM token WHERE personid = $1 AND agent = $2",
 			values: [personid, agent]
 		})
+		console.log(resp);
 	}catch(err){
 		res.status(400)
 		return;

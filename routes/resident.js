@@ -546,25 +546,21 @@ residentRouter.delete('/:id',async(req,res)=>{
     console.log('delete residentid', residentid);
     let response;
     try{
+        // delete resident 
         await db.any({
             name: 'Delete the resident itself' ,
             text: `DELETE FROM Residents WHERE Residents.id = $1`,
             values: [residentid]
         })
 
+        // delete key ownage 
         await db.any({
             name: 'Delete the key ownage ',
             text: `DELETE FROM PERSONSKEYS WHERE PersonsKeys.personid = $1`,
             values: [residentid]
         })
 
-        await db.none({
-            name: 'Delete the entries record',
-            text: `DELETE FROM ENTRIES WHERE Entries.personid = $1`,
-            values: [residentid]
-        })
-
-
+        // select to identify face photos 
         response = await db.any({
             name: 'Select the photos to know which photos to delete',
             text: `SELECT photos.photoid, photos.photopath, photos.faceid 
@@ -572,12 +568,15 @@ residentRouter.delete('/:id',async(req,res)=>{
             WHERE photos.phototype=$1 AND photospersons.personid=$2 `,
             values : ['face', residentid]
         })
+
+        // delete the photo and person linkage 
         await db.none({
             name: 'Delete the linkage of photos & persons on personsphotos',
             text: `DELETE FROM photospersons WHERE photospersons.personid = $1`,
             values: [residentid]
         })
 
+        // delete the person face photos and those indexed in the collection
         if ( response.length > 0) { 
             let photoid = response[0].photoid
             let photopath = response[0].photopath
@@ -595,8 +594,16 @@ residentRouter.delete('/:id',async(req,res)=>{
             await db.any({ 
                 name: 'Delete the pictures of the person',
                 text: 'DELETE FROM photos WHERE photos.photoid = $1',
-                values: [photoid]})
+                values: [residentid]})
+
         }
+
+        await db.none({
+            name: 'Delete the person entry',
+            text: 'Delete FROM entries where personid = $1',
+            values: [personid]
+        })
+
 
         await db.none({
             name: 'Delete the person itself',

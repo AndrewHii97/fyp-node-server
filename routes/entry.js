@@ -26,7 +26,7 @@ entryRouter.get('/entryList',async (__ , res)=>{
             inner join persontypes on persontypes.persontypeid = persons.persontypeid
             inner join photospersons on photospersons.personid = persons.id 
             inner join photos as pphotos on pphotos.photoid = photospersons.photoid 
-            where hasissue = 'false'`
+            `
         }); 
         console.log(entryList)
         res.status(200).send(entryList);
@@ -74,8 +74,7 @@ entryRouter.get('/entryDetail?:entryid',async (req,res)=>{
             inner join photos on photos.photoid = entries.photoid 
             inner join persontypes on persontypes.persontypeid = persons.persontypeid
             inner join photospersons on photospersons.personid = persons.id 
-            inner join photos as pphotos on pphotos.photoid = photospersons.photoid 
-            where hasissue = 'false' AND entries.entryid = $1;`,
+            inner join photos as pphotos on pphotos.photoid = photospersons.photoid AND entries.entryid = $1;`,
             values: [entryid]
         })
         res.status(200).send(entryDetail);
@@ -132,13 +131,32 @@ entryRouter.delete('/:entryid', async(req,res)=>{
     try{
        let r = await db.none({
            name: 'delete the entry in entries table',
-           text: 'DELETE FROM entries WHERE entryid = $1',
-           values: [entryid]
+           text: 'DELETE FROM entries WHERE photoid = $1',
+           values: [photoid]
        })
     }catch(err){
         console.log(err);
         res.status(400)
         return 
+    }
+
+    try{ 
+        let r0 = await db.any({
+            name: 'delete photo in issuesphotos and it related issue',
+            text: `DELETE FROM issuesphotos where issuesphotos.photoid = $1 RETURNING issueid`,
+            values: [photoid]
+        })
+        r0.forEach(async(ele)=>{
+            await db.none({
+                name:'delete each issue related to this photo',
+                text:'DELETE FROM issues WHERE issueid = $1',
+                values: [ele.issueid]
+            })
+        })
+    }catch(err){
+        console.log(err);
+        res.status(400);
+        return;
     }
 
     try{
